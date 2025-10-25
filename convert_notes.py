@@ -101,6 +101,10 @@ def main():
                 # But trim it to 248 characters so we can keep the entire thing -
                 # with the possible extra digit(s) added below - under 255 characters.
                 filename_start = lines[0]
+
+                # many note titles may start with a '#' for a Markdown title, so remove that first:
+                filename_start = filename_start.lstrip('#').strip()
+
                 if len(filename_start) > 248:
                     filename = filename_start[0:248] + ".md"
                 else:
