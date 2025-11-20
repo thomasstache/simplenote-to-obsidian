@@ -6,6 +6,7 @@ import re
 import shutil
 import sys
 from datetime import datetime
+from enum import Enum
 from subprocess import call
 
 # Path to the JSON file we'll read in:
@@ -25,6 +26,12 @@ KEEP_ORIGINAL_CREATION_TIME = True
 KEEP_ORIGINAL_MODIFIED_TIME = True
 
 
+class TagPosition(Enum):
+    YAML = 1
+    START = 2
+    END = 3
+
+
 def main():
     ###################################################################
     # 1. Set-up and checking.
@@ -35,13 +42,19 @@ def main():
     if not os.path.isfile(INPUT_FILE):
         sys.exit(f"{INPUT_FILE} is not a file")
 
-    tag_position = input("\nWhere should tags be put? Either 'start' or 'end' (default is 'end'):")
+    tag_position: TagPosition = TagPosition.END
+    tag_position_input = input("\nWhere should tags be put? Either YAML (1), start (2) or end (3) (default is '3'): ")
 
-    if tag_position == "":
-        tag_position = "end"
-
-    if tag_position not in ["start", "end"]:
-        sys.exit("Enter either 'start' or 'end'.")
+    if tag_position_input == "":
+        tag_position = TagPosition.END
+    elif tag_position_input == "1":
+        tag_position = TagPosition.YAML
+    elif tag_position_input == "2":
+        tag_position = TagPosition.START
+    elif tag_position_input == "3":
+        tag_position = TagPosition.END
+    else:
+        sys.exit("Select either 'yaml', 'start' or 'end'. Please rerun the script.")
 
     if os.path.exists(OUTPUT_DIRECTORY):
         # rename existing output directory
@@ -79,44 +92,30 @@ def main():
         for note in data["activeNotes"]:
             # Get all the note's lines into a list:
             lines = note["content"].splitlines()
+            note_is_markdown = (note.get("markdown") or False) is True
+            frontmatter = []
 
             if len(lines) == 0:
                 # We'll skip any empty notes
                 print(f"Skipping empty note with ID of {note['id']}")
             else:
-                if "tags" in note:
-                    # Deal with the tags
-
-                    tags = note["tags"]
-
-                    # Replace any non-word characters in each tag with a hyphen:
-                    tags = [re.sub(r'\W+', '-', tag) for tag in tags]
-
-                    # Prefix tags with # so obsidian recognises them as tags:
-                    tags = ["#" + tag for tag in tags]
-
-                    # Create the tag text we'll insert into the new note:
-                    tag_text = " ".join(tags)
-
-                    if tag_position == "start":
-                        lines.insert(1, "")
-                        lines.insert(2, tag_text)
-                    else:
-                        lines.append("")
-                        lines.append(tag_text)
-
                 # Create the new filename/path based on the first line of the note:
                 # But trim it to 248 characters so we can keep the entire thing -
                 # with the possible extra digit(s) added below - under 255 characters.
-                filename_start = lines[0]
+                note_title = lines[0].strip()
 
                 # many note titles may start with a '#' for a Markdown title, so remove that first:
-                filename_start = filename_start.lstrip('#').strip()
+                if note_is_markdown or note_title.startswith('#'):
+                    note_title = note_title.lstrip('#').strip()
+                    # remove the title line
+                    lines = lines[1:]
+                    while lines[0].strip() == "":
+                        lines = lines[1:]
 
-                if len(filename_start) > 248:
-                    filename = filename_start[0:248] + ".md"
+                if len(note_title) > 248:
+                    filename = note_title[0:248] + ".md"
                 else:
-                    filename = filename_start + ".md"
+                    filename = note_title + ".md"
 
                 # Need to remove any forward slashes or colons:
                 filename = filename.replace("/", "").replace(":", "")
@@ -136,6 +135,20 @@ def main():
                     filepath = os.path.join(OUTPUT_DIRECTORY, filename)
 
                 # print(f"Writing {note['id']} to '{filepath}'")
+
+                if "tags" in note:
+                    tags = note["tags"]
+
+                    # Replace any non-word characters in each tag with a hyphen:
+                    tags = [re.sub(r'\W+', '-', tag) for tag in tags]
+
+                    if tag_position == TagPosition.YAML:
+                        add_tags_to_front_matter(frontmatter, tags)
+                    else:
+                        add_legacy_tags(lines, tags, tag_position)
+
+                if len(frontmatter) > 0:
+                    prepend_front_matter(lines, frontmatter)
 
                 with open(filepath, "w", encoding="UTF-8") as outfile:
                     outfile.write("\n".join(lines))
@@ -157,6 +170,34 @@ def main():
     num_files = sum(filenames.values())
     files_were = "file was" if num_files == 1 else "files were"
     print(f"\n{num_files} .md {files_were} created in {OUTPUT_DIRECTORY}")
+
+
+# Create the YAML front-matter block
+def prepend_front_matter(lines: list[str], properties: list[str]):
+    frontmatter = ["---", *properties, "---"]
+    lines[0:0] = frontmatter
+
+
+# Write tags into Front-Matter
+def add_tags_to_front_matter(frontmatter: list[str], tags: list[str]):
+    frontmatter.append("tags:")
+    for tag in tags:
+        frontmatter.append(f"  - {tag}")
+
+
+def add_legacy_tags(lines, tags: list[str], tag_position: TagPosition):
+    # Prefix tags with # so obsidian recognises them as tags:
+    tags = ["#" + tag for tag in tags]
+
+    # Create the tag text we'll insert into the new note:
+    tag_text = " ".join(tags)
+
+    if tag_position == TagPosition.START:
+        lines.insert(1, "")
+        lines.insert(2, tag_text)
+    else:
+        lines.append("")
+        lines.append(tag_text)
 
 
 if __name__ == "__main__":
