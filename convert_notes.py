@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import shutil
 import sys
 from datetime import datetime
 from subprocess import call
@@ -41,6 +42,13 @@ def main():
 
     if tag_position not in ["start", "end"]:
         sys.exit("Enter either 'start' or 'end'.")
+
+    if os.path.exists(OUTPUT_DIRECTORY):
+        # rename existing output directory
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        new_name = f"{OUTPUT_DIRECTORY.rstrip('/')}_backup_{timestamp}/"
+        print(f"\nRenaming existing output directory to {new_name}\n")
+        shutil.move(OUTPUT_DIRECTORY, new_name)
 
     if not os.path.isdir(OUTPUT_DIRECTORY):
         os.mkdir(OUTPUT_DIRECTORY)
