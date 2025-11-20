@@ -11,6 +11,8 @@ from subprocess import call
 
 # Path to the JSON file we'll read in:
 INPUT_FILE = "./notes.json"
+# INPUT_FILE = "./notes-short.json"
+# INPUT_FILE = "./notes-dates.json"
 
 # Path to the directory where we'll save the converted notes:
 OUTPUT_DIRECTORY = "./notes_converted/"
@@ -30,6 +32,35 @@ class TagPosition(Enum):
     YAML = 1
     START = 2
     END = 3
+
+
+def check_dates_in_title(properties: list[str], note_title):
+    """
+    Check for date patterns in the note title and add a 'date' field to note properties if found.
+
+    :param properties: list of properties
+    :param note_title: str
+    """
+
+    # first element is the regex pattern, second is the date format to parse the matched string
+    date_patterns = [
+        (r'(\d{4})-(\d{1,2})-(\d{1,2})', "%Y-%m-%d"),  # YYYY-M-D or YYYY-MM-DD
+        (r'(\d{4})/(\d{1,2})/(\d{1,2})', "%Y/%m/%d"),  # YYYY/M/D or YYYY/MM/DD
+        (r'(\d{1,2})/(\d{1,2})/(\d{4})', "%m/%d/%Y"),  # M/D/YYYY or MM/DD/YYYY
+        (r'(\d{1,2})-(\d{1,2})-(\d{4})', "%d-%m-%Y"),  # D-M-YYYY or DD-MM-YYYY
+        (r'(\d{1,2})\.(\d{1,2})\.(\d{4})', "%d.%m.%Y"),  # D.M.YYYY or DD.MM.YYYY
+        (r'(\d{1,2})\.(\d{1,2})\.(\d{2})', "%d.%m.%y"),  # D.M.YY or DD.MM.YY
+    ]
+    for pattern, date_format in date_patterns:
+        match = re.search(pattern, note_title)
+        if match:
+            date_str = match.group(0)
+            try:
+                date_obj = datetime.strptime(date_str, date_format)
+                properties.append(f"date: {date_obj.strftime('%Y-%m-%d')}")
+            except ValueError:
+                pass
+            break
 
 
 def main():
@@ -146,6 +177,9 @@ def main():
                         add_tags_to_front_matter(frontmatter, tags)
                     else:
                         add_legacy_tags(lines, tags, tag_position)
+
+                # check title for date patterns
+                check_dates_in_title(frontmatter, note_title)
 
                 if len(frontmatter) > 0:
                     prepend_front_matter(lines, frontmatter)
