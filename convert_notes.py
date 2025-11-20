@@ -123,7 +123,11 @@ def main():
         for note in data["activeNotes"]:
             # Get all the note's lines into a list:
             lines = note["content"].splitlines()
-            note_is_markdown = (note.get("markdown") or False) is True
+            meta_data = {
+                "is_markdown": (note.get("markdown") or False) is True,
+                "creationDate": datetime.strptime(note["creationDate"], "%Y-%m-%dT%H:%M:%S.%fZ"),
+                "lastModified": datetime.strptime(note["lastModified"], "%Y-%m-%dT%H:%M:%S.%fZ"),
+            }
             frontmatter = []
 
             if len(lines) == 0:
@@ -136,7 +140,7 @@ def main():
                 note_title = lines[0].strip()
 
                 # many note titles may start with a '#' for a Markdown title, so remove that first:
-                if note_is_markdown or note_title.startswith('#'):
+                if meta_data["is_markdown"] or note_title.startswith('#'):
                     note_title = note_title.lstrip('#').strip()
                     # remove the title line
                     lines = lines[1:]
@@ -181,6 +185,9 @@ def main():
                 # check title for date patterns
                 check_dates_in_title(frontmatter, note_title)
 
+                if "creationDate" in meta_data:
+                    frontmatter.append(f"simplenote-created: {meta_data['creationDate'].strftime('%Y-%m-%dT%H:%M:%SZ')}")
+
                 if len(frontmatter) > 0:
                     prepend_front_matter(lines, frontmatter)
 
@@ -188,17 +195,12 @@ def main():
                     outfile.write("\n".join(lines))
 
                 if KEEP_ORIGINAL_CREATION_TIME:
-                    creation_time = datetime.strptime(
-                        note["creationDate"], "%Y-%m-%dT%H:%M:%S.%fZ"
-                    ).strftime("%m/%d/%Y %H:%M:%S %p")
+                    creation_time = meta_data["creationDate"].strftime("%m/%d/%Y %H:%M:%S %p")
                     call(["SetFile", "-d", creation_time, filepath])
 
                 if KEEP_ORIGINAL_MODIFIED_TIME:
                     # Set the file access and modified times:
-                    modified_time = datetime.strptime(
-                        note["lastModified"], "%Y-%m-%dT%H:%M:%S.%fZ"
-                    )
-                    modified_time = modified_time.timestamp()
+                    modified_time = meta_data["lastModified"].timestamp()
                     os.utime(filepath, (modified_time, modified_time))
 
     num_files = sum(filenames.values())
