@@ -7,8 +7,6 @@ import sys
 from datetime import datetime
 from subprocess import call
 
-
-
 # Path to the JSON file we'll read in:
 INPUT_FILE = "./notes.json"
 
@@ -27,7 +25,6 @@ KEEP_ORIGINAL_MODIFIED_TIME = True
 
 
 def main():
-
     ###################################################################
     # 1. Set-up and checking.
 
@@ -88,7 +85,7 @@ def main():
                     tags = [re.sub(r'\W+', '-', tag) for tag in tags]
 
                     # Prefix tags with # so obsidian recognises them as tags:
-                    tags = ["#"+tag for tag in tags]
+                    tags = ["#" + tag for tag in tags]
 
                     # Create the tag text we'll insert into the new note:
                     tag_text = " ".join(tags)
@@ -126,7 +123,7 @@ def main():
                     filename = f"{filename[:-3]} {filenames[filename]}.md"
                     filepath = os.path.join(OUTPUT_DIRECTORY, filename)
 
-                #print(f"Writing {note['id']} to '{filepath}'")
+                # print(f"Writing {note['id']} to '{filepath}'")
 
                 with open(filepath, "w", encoding="UTF-8") as outfile:
                     outfile.write("\n".join(lines))
